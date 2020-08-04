@@ -1,0 +1,7 @@
+{
+    "chrome": {
+		"browserName": "chrome",
+		"browserVersion": "latest",
+		"platformName": "WIN10"
+    }
+}
