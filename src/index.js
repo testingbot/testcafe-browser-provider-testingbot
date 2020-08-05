@@ -1,8 +1,9 @@
 import { Builder } from 'selenium-webdriver';
 import { writeFileSync, readFileSync, existsSync } from 'fs';
 
-var testingbotTunnel = require('testingbot-tunnel-launcher');
-var Promise = require('promise');
+const testingbotTunnel = require('testingbot-tunnel-launcher');
+const Promise = require('promise');
+const TestingbotApi = require('testingbot-api');
 
 export default {
     // Multiple browsers support
@@ -10,11 +11,12 @@ export default {
     seleniumServer:    'https://hub.testingbot.com/wd/hub',
     openedBrowsers:    {},
     heartbeatHandler:  {},
-    heartbeatInterval: Number(process.env.SELENIUM_HEARTBEAT) || 10e3,
+    heartbeatInterval: Number(process.env.SELENIUM_HEARTBEAT) || 8000,
     capabilities:      process.env.SELENIUM_CAPABILITIES || 'capabilities.json',
     tbKey:             null,
     tbSecret:          null,
     tunnel:            null,
+    apiClient:         null,
 
 
     /**
@@ -24,14 +26,13 @@ export default {
      * @param {string} browserName browser string in format 'browserName[@version][:platform]'
      */
     async openBrowser (id, pageUrl, browserName) {
+        // eslint-disable-next-line
+        console.log('openbrowser')
         if (!browserName)
             throw new Error('Browser not specified!');
 
         if (!process.env.TB_KEY || !process.env.TB_SECRET)
             throw new Error('Please specify both TB_KEY and TB_SECRET environment variables. You can find these two keys in the TestingBot member area.');
-
-        this.tbKey = process.env.TB_KEY;
-        this.tbSecret = process.env.TB_SECRET;
 
         this.tunnel = await this.startTunnel();
 
@@ -39,7 +40,8 @@ export default {
             'tb:options': {
                 'tunnel-identifier': this.tunnelIdentifier,
                 'key':               this.tbKey,
-                'secret':            this.tbSecret
+                'secret':            this.tbSecret,
+                'name':              `TestCafe test run ${id}`
             }
         };
 
@@ -48,7 +50,16 @@ export default {
 
             if (capsJson && capsJson[browserName])
                 caps = Object.assign(caps, capsJson[browserName]);
-        }        
+        }
+
+        if (process.env['TB_TEST_NAME'])
+            caps['tb:options'].name = process.env['TB_TEST_NAME'];
+
+        if (process.env['TB_BUILD'])
+            caps['tb:options'].build = process.env['TB_BUILD'];
+
+        if (process.env['TB_SCREEN_RESOLUTION'])
+            caps['tb:options']['screen-resolution'] = process.env['TB_SCREEN_RESOLUTION'];
 
         const builder = new Builder().withCapabilities(caps).usingServer(this.seleniumServer);
 
@@ -101,6 +112,8 @@ export default {
 
         if (this.openedBrowsers[id])
             await this.openedBrowsers[id].quit();
+
+        delete this.openedBrowsers[id];
     },
 
     sleep (time) {
@@ -133,7 +146,13 @@ export default {
     // Optional - implement methods you need, remove other methods
     // Initialization
     async init () {
-        return;
+        this.tbKey = process.env.TB_KEY;
+        this.tbSecret = process.env.TB_SECRET;
+
+        this.apiClient = new TestingbotApi({
+            api_key:    this.tbKey,
+            api_secret: this.tbSecret
+        });
     },
 
     async dispose () {
@@ -166,8 +185,23 @@ export default {
         return true;
     },
 
-    async resizeWindow (id, width, height, /*currentWidth, currentHeight */) {
-        await this.openedBrowsers[id].manage().window().setRect({ width: width, height: height });
+    getCorrectedSize (currentClientAreaSize, currentWindowSize, requestedSize) {
+        var horizontalChrome = currentWindowSize.width - currentClientAreaSize.width;
+        var verticalChrome   = currentWindowSize.height - currentClientAreaSize.height;
+
+        return {
+            width:  requestedSize.width + horizontalChrome,
+            height: requestedSize.height + verticalChrome
+        };
+    },
+
+    async resizeWindow (id, width, height, currentWidth, currentHeight ) {
+        const currentWindowSize     = await this.openedBrowsers[id].getWindowSize();
+        const currentClientAreaSize = { width: currentWidth, height: currentHeight };
+        const requestedSize         = { width, height };
+        const correctedSize         = this.getCorrectedSize(currentClientAreaSize, currentWindowSize, requestedSize);
+
+        await this.openedBrowsers[id].setWindowSize(correctedSize.width, correctedSize.height);
     },
 
     async maximizeWindow (id) {
@@ -188,23 +222,32 @@ export default {
         return await Buffer.from(screenshot, 'base64');
     },
 
-    async reportJobResult (id, status, data) {
+    async reportJobResult (id, jobResult, jobData) {
+        if (jobResult !== this.JOB_RESULT.done && jobResult !== this.JOB_RESULT.errored)
+            return null;
+
         if (this.openedBrowsers[id]) {
             const session = await this.openedBrowsers[id].getSession();
             const sessionId = session.getId();
+            const jobPassed = jobResult === this.JOB_RESULT.done && jobData.total === jobData.passed;
 
-            // eslint-disable-next-line
-            console.log('sessionId', sessionId);
-            return await this._updateJobStatus(sessionId, status, data);
+            return await this._updateJobStatus(sessionId, jobPassed);
         }
+
         return null;
     },
 
-    async _updateJobStatus (sessionId, status, data) {
-        // eslint-disable-next-line
-        console.log('update job', sessionId, status, data);
+    async _updateJobStatus (sessionId, passed) {
+        return new Promise((resolve, reject) => {
+            const testData = { 'test[success]': passed ? '1' : '0' };
 
-        return true;
+            this.apiClient.updateTest(testData, sessionId, function (error, testDetails) {
+                if (error)
+                    reject(error);
+                else
+                    resolve(testDetails);
+            });
+        });
     },
 
     async isLocalBrowser () {

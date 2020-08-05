@@ -33,7 +33,6 @@
     "no-undef-init": "error",
     "no-unused-expressions": "error",
     "no-with": "error",
-    "camelcase": "error",
     "comma-spacing": "error",
     "consistent-return": "error",
     "eqeqeq": "error",
