@@ -5,6 +5,26 @@ const testingbotTunnel = require('testingbot-tunnel-launcher');
 const Promise = require('promise');
 const TestingbotApi = require('testingbot-api');
 
+function _findMatch (string, re) {
+    const match = string.match(re);
+
+    return match ? match[1].trim() : '';
+}
+
+function _formalName (browser) {
+    // browser names should respect selenium's definition
+    switch (browser) {
+        case 'ie':
+            return 'internet explorer';
+        case 'googlechrome':
+            return 'chrome';
+        case 'edge':
+            return 'MicrosoftEdge';
+        default:
+            return browser;
+    }
+}
+
 export default {
     // Multiple browsers support
     isMultiBrowser:    true,
@@ -17,6 +37,7 @@ export default {
     tbSecret:          null,
     tunnel:            null,
     apiClient:         null,
+    tunnelIdentifier:  null,
 
 
     /**
@@ -26,15 +47,14 @@ export default {
      * @param {string} browserName browser string in format 'browserName[@version][:platform]'
      */
     async openBrowser (id, pageUrl, browserName) {
-        // eslint-disable-next-line
-        console.log('openbrowser')
         if (!browserName)
             throw new Error('Browser not specified!');
 
         if (!process.env.TB_KEY || !process.env.TB_SECRET)
             throw new Error('Please specify both TB_KEY and TB_SECRET environment variables. You can find these two keys in the TestingBot member area.');
 
-        this.tunnel = await this.startTunnel();
+        if (!process.env['TB_SKIP_TUNNEL'])
+            this.tunnel = await this.startTunnel();
 
         let caps = {
             'tb:options': {
@@ -45,11 +65,37 @@ export default {
             }
         };
 
+        if (this.tunnelIdentifier === null)
+            delete caps['tb:options']['tunnel-identifier'];
+
+        const browserProfile = _findMatch(browserName, /([^@:]+)/);
+        const browser = _findMatch(browserProfile, /([^#]+)/);
+        const version = _findMatch(browserName, /@([^:]+)/);
+        const platform = _findMatch(browserName, /:(.+)/);
+
+        let manualCaps = true;
+
         if (existsSync(this.capabilities)) {
             const capsJson = JSON.parse(readFileSync(this.capabilities));
 
-            if (capsJson && capsJson[browserName])
+            if (capsJson && capsJson[browserName]) {
+                manualCaps = false;
+                // here we fetch the capabilities from the capabilities.json file instead
+                // of taking the capabilities passed
                 caps = Object.assign(caps, capsJson[browserName]);
+            }
+        }
+
+        if (manualCaps) {
+            if (platform && platform.length > 0)
+                caps['platformName'] = platform;
+
+            if (version && version.length > 0)
+                caps['browserVersion'] = version;
+
+            if (browser && browser.length > 0)
+                caps['browserName'] = browser;
+
         }
 
         if (process.env['TB_TEST_NAME'])
@@ -169,11 +215,21 @@ export default {
         if (this.tunnel)
             await this.stopTunnel();
     },
-
     
     // Browser names handling
     async getBrowserList () {
-        throw new Error('Not implemented!');
+        return new Promise((resolve, reject) => {
+            this.apiClient.getBrowsers(function (error, browsers) {
+                if (error)
+                    return reject(error);
+
+                const browserList = browsers.filter(browser => !browser.deviceName).map(browser => {
+                    return `${_formalName(browser.name)}@${browser.version}:${browser.platform}`;
+                });
+
+                return resolve(browserList);
+            });
+        });
     },
 
     async isValidBrowserName (/*browserName*/) {
@@ -230,6 +286,11 @@ export default {
             const session = await this.openedBrowsers[id].getSession();
             const sessionId = session.getId();
             const jobPassed = jobResult === this.JOB_RESULT.done && jobData.total === jobData.passed;
+
+            if (process.env['TB_CI_MODE']) {
+                // eslint-disable-next-line
+                console.log(`TestingBotSessionID=${sessionId}`)
+            }
 
             return await this._updateJobStatus(sessionId, jobPassed);
         }
