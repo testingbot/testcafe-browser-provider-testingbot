@@ -12,9 +12,9 @@ function _findMatch (string, re) {
 }
 
 function _formalName (browser) {
-    // browser names should respect selenium's definition
     switch (browser) {
         case 'ie':
+        case 'iexplore':
             return 'internet explorer';
         case 'googlechrome':
             return 'chrome';
@@ -55,60 +55,8 @@ export default {
 
         if (!process.env['TB_SKIP_TUNNEL'])
             this.tunnel = await this.startTunnel();
-
-        let caps = {
-            'tb:options': {
-                'tunnel-identifier': this.tunnelIdentifier,
-                'key':               this.tbKey,
-                'secret':            this.tbSecret,
-                'name':              `TestCafe test run ${id}`
-            }
-        };
-
-        if (this.tunnelIdentifier === null)
-            delete caps['tb:options']['tunnel-identifier'];
-
-        const browserProfile = _findMatch(browserName, /([^@:]+)/);
-        const browser = _findMatch(browserProfile, /([^#]+)/);
-        const version = _findMatch(browserName, /@([^:]+)/);
-        const platform = _findMatch(browserName, /:(.+)/);
-
-        let manualCaps = true;
-
-        if (existsSync(this.capabilities)) {
-            const capsJson = JSON.parse(readFileSync(this.capabilities));
-
-            if (capsJson && capsJson[browserName]) {
-                manualCaps = false;
-                // here we fetch the capabilities from the capabilities.json file instead
-                // of taking the capabilities passed
-                caps = Object.assign(caps, capsJson[browserName]);
-            }
-        }
-
-        if (manualCaps) {
-            if (platform && platform.length > 0)
-                caps['platformName'] = platform;
-
-            if (version && version.length > 0)
-                caps['browserVersion'] = version;
-
-            if (browser && browser.length > 0)
-                caps['browserName'] = browser;
-
-        }
-
-        if (!caps['browserName'])
-            throw new Error('Invalid browserName. Can not start session.');
-
-        if (process.env['TB_TEST_NAME'])
-            caps['tb:options'].name = process.env['TB_TEST_NAME'];
-
-        if (process.env['TB_BUILD'])
-            caps['tb:options'].build = process.env['TB_BUILD'];
-
-        if (process.env['TB_SCREEN_RESOLUTION'])
-            caps['tb:options']['screen-resolution'] = process.env['TB_SCREEN_RESOLUTION'];
+        
+        const caps = this.generateCapabilities(browserName, id);
 
         const builder = new Builder().withCapabilities(caps).usingServer(this.seleniumServer);
 
@@ -172,6 +120,63 @@ export default {
             await this.openedBrowsers[id].quit();
 
         delete this.openedBrowsers[id];
+    },
+
+    generateCapabilities (browserName, id) {
+        let caps = {
+            'tb:options': {
+                'tunnel-identifier': this.tunnelIdentifier,
+                'key':               this.tbKey,
+                'secret':            this.tbSecret,
+                'name':              `TestCafe test run ${id}`
+            }
+        };
+
+        if (this.tunnelIdentifier === null)
+            delete caps['tb:options']['tunnel-identifier'];
+
+        const browserProfile = _findMatch(browserName, /([^@:]+)/);
+        const browser = _findMatch(browserProfile, /([^#]+)/);
+        const version = _findMatch(browserName, /@([^:]+)/);
+        const platform = _findMatch(browserName, /:(.+)/);
+        let manualCaps = true;
+
+        if (existsSync(this.capabilities)) {
+            const capsJson = JSON.parse(readFileSync(this.capabilities));
+
+            if (capsJson && capsJson[browserName]) {
+                manualCaps = false;
+                // here we fetch the capabilities from the capabilities.json file instead
+                // of taking the capabilities passed
+                caps = Object.assign(caps, capsJson[browserName]);
+            }
+        }
+
+        if (manualCaps) {
+            if (platform && platform.length > 0)
+                caps['platformName'] = platform;
+
+            if (version && version.length > 0)
+                caps['browserVersion'] = version;
+
+            if (browser && browser.length > 0)
+                caps['browserName'] = browser;
+
+        }
+
+        if (!caps['browserName'])
+            throw new Error('Invalid browserName. Can not start session.');
+
+        if (process.env['TB_TEST_NAME'])
+            caps['tb:options'].name = process.env['TB_TEST_NAME'];
+
+        if (process.env['TB_BUILD'])
+            caps['tb:options'].build = process.env['TB_BUILD'];
+
+        if (process.env['TB_SCREEN_RESOLUTION'])
+            caps['tb:options']['screen-resolution'] = process.env['TB_SCREEN_RESOLUTION'];
+
+        return caps;
     },
 
     sleep (time) {

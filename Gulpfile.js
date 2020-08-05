@@ -20,7 +20,6 @@ gulp.task('lint', function () {
     return gulp
         .src([
             'src/**/*.js',
-            'test/**/*.js',
             'Gulpfile.js'
         ])
         .pipe(eslint())
@@ -37,10 +36,10 @@ gulp.task('build', ['clean', 'lint'], function () {
 
 gulp.task('test', ['build'], function () {
     return gulp
-        .src('test/**.js')
+        .src('test/mocha/**/*.js')
         .pipe(mocha({
             ui:       'bdd',
             reporter: 'spec',
-            timeout:  typeof v8debug === 'undefined' ? 2000 : Infinity // NOTE: disable timeouts in debug
+            timeout:  typeof v8debug === 'undefined' ? 2000 : Infinity,
         }));
 });
