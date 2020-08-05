@@ -98,6 +98,9 @@ export default {
 
         }
 
+        if (!caps['browserName'])
+            throw new Error('Invalid browserName. Can not start session.');
+
         if (process.env['TB_TEST_NAME'])
             caps['tb:options'].name = process.env['TB_TEST_NAME'];
 
@@ -113,6 +116,15 @@ export default {
 
         await webDriver.get(pageUrl);
         this.openedBrowsers[id] = webDriver;
+
+        const session = await this.openedBrowsers[id].getSession();
+        const sessionId = session.getId();
+
+        if (session) {
+            const sessionUrl = `https://testingbot.com/members/tests/${sessionId}`;
+            
+            this.setUserAgentMetaInfo(id, sessionUrl);
+        }
 
         if (this.heartbeatInterval > 0)
             this.startHeartbeat(id, webDriver);
