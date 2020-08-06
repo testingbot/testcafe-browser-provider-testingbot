@@ -3,5 +3,13 @@
 		"browserName": "chrome",
 		"browserVersion": "latest",
 		"platformName": "WIN10"
+    },
+    "firefox": {
+    	"browserName": "firefox",
+		"browserVersion": "latest-1",
+		"platformName": "CATALINA",
+		"tb:options": {
+			"screenshots" : true
+		}
     }
 }

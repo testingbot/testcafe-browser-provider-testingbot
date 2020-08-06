@@ -4,6 +4,7 @@ import { writeFileSync, readFileSync, existsSync } from 'fs';
 const testingbotTunnel = require('testingbot-tunnel-launcher');
 const Promise = require('promise');
 const TestingbotApi = require('testingbot-api');
+const merge = require('deepmerge');
 
 function _findMatch (string, re) {
     const match = string.match(re);
@@ -148,7 +149,7 @@ export default {
                 manualCaps = false;
                 // here we fetch the capabilities from the capabilities.json file instead
                 // of taking the capabilities passed
-                caps = Object.assign(caps, capsJson[browserName]);
+                caps = merge.all([caps, capsJson[browserName]]);
             }
         }
 
