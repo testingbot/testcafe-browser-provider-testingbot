@@ -1,8 +1,8 @@
 import { Builder } from 'selenium-webdriver';
 import { writeFileSync, readFileSync, existsSync } from 'fs';
+import Promise from 'pinkie';
 
 const testingbotTunnel = require('testingbot-tunnel-launcher');
-const Promise = require('promise');
 const TestingbotApi = require('testingbot-api');
 const merge = require('deepmerge');
 
@@ -271,12 +271,12 @@ export default {
     },
 
     async resizeWindow (id, width, height, currentWidth, currentHeight ) {
-        const currentWindowSize     = await this.openedBrowsers[id].getWindowSize();
+        const currentWindowSize     = await this.openedBrowsers[id].manage().window().getRect();
         const currentClientAreaSize = { width: currentWidth, height: currentHeight };
         const requestedSize         = { width, height };
         const correctedSize         = this.getCorrectedSize(currentClientAreaSize, currentWindowSize, requestedSize);
 
-        await this.openedBrowsers[id].setWindowSize(correctedSize.width, correctedSize.height);
+        await this.openedBrowsers[id].manage().window().setRect({ width: correctedSize.width, height: correctedSize.height });
     },
 
     async maximizeWindow (id) {
