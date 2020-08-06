@@ -27,7 +27,7 @@ testcafe "testingbot:chrome@83:WIN10" 'path/to/test/file.js'
 If you'd like to run a test on multiple browsers, simultaneously:
 
 ```
-testcafe "testingbot:chrome@83:WIN10", "testingbot:firefox@79:CATALINA" 'path/to/test/file.js'
+testcafe "testingbot:chrome@83:WIN10","testingbot:firefox@79:CATALINA" 'path/to/test/file.js'
 ```
 
 When you use API, pass the alias to the `browsers()` method:
