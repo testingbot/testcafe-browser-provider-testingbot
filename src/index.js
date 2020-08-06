@@ -140,6 +140,7 @@ export default {
         const browser = _findMatch(browserProfile, /([^#]+)/);
         const version = _findMatch(browserName, /@([^:]+)/);
         const platform = _findMatch(browserName, /:(.+)/);
+
         let manualCaps = true;
 
         if (existsSync(this.capabilities)) {
