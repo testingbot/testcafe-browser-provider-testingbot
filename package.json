@@ -30,6 +30,7 @@
     "deepmerge": "^4.2.2",
     "pinkie": "^2.0.4",
     "selenium-webdriver": "^4.0.0-alpha.7",
+    "testingbot-api": "^1.0.7",
     "testingbot-tunnel-launcher": "^1.1.7"
   },
   "devDependencies": {
@@ -49,7 +50,6 @@
     "node-version": "^1.0.0",
     "publish-please": "^5.5.1",
     "sinon": "^7.2.5",
-    "testcafe": "^1.9.0",
-    "testingbot-api": "^1.0.7"
+    "testcafe": "^1.9.0"
   }
 }
