@@ -1,6 +1,6 @@
 {
   "name": "testcafe-browser-provider-testingbot",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "testingbot TestCafe browser provider plugin.",
   "repository": "https://github.com/testingbot/testcafe-browser-provider-testingbot",
   "homepage": "https://github.com/testingbot/testcafe-browser-provider-testingbot",
