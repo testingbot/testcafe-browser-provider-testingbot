@@ -9,6 +9,9 @@ This plugin integrates [TestCafe](http://devexpress.github.io/testcafe) with the
 npm install testcafe-browser-provider-testingbot
 ```
 
+## Prerequisites
+You need to have NodeJS installed and Java (JRE8 or higher). Java is required for the [TestingBot Tunnel](https://testingbot.com/support/other/tunnel) to work.
+
 ## Usage
 Before you can use this plugin, you will need to get the TestingBot key and secret from the TestingBot member area.
 Once you have these two credentials, add these as environment variables`TB_KEY` and `TB_SECRET`.
