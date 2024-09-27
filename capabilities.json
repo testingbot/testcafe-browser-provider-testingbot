@@ -7,7 +7,7 @@
     "firefox": {
     	"browserName": "firefox",
 		"browserVersion": "latest-1",
-		"platformName": "CATALINA",
+		"platformName": "SONOMA",
 		"tb:options": {
 			"screenshots" : true
 		}

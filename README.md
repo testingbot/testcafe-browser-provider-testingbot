@@ -1,6 +1,3 @@
-# testcafe-browser-provider-testingbot
-[![Build Status](https://travis-ci.org/testingbot/testcafe-browser-provider-testingbot.svg)](https://travis-ci.org/testingbot/testcafe-browser-provider-testingbot)
-
 This plugin integrates [TestCafe](http://devexpress.github.io/testcafe) with the [TestingBot Testing Cloud](https://testingbot.com).
 
 ## Install
@@ -24,13 +21,13 @@ testcafe -b testingbot
 When you run tests from the command line, use the alias when specifying browsers:
 
 ```
-testcafe "testingbot:chrome@83:WIN10" 'path/to/test/file.js'
+testcafe "testingbot:chrome@latest:WIN10" 'path/to/test/file.js'
 ```
 
 If you'd like to run a test on multiple browsers, simultaneously:
 
 ```
-testcafe "testingbot:chrome@83:WIN10","testingbot:firefox@79:CATALINA" 'path/to/test/file.js'
+testcafe "testingbot:chrome@latest:WIN10","testingbot:firefox@latest-1:SONOMA" 'path/to/test/file.js'
 ```
 
 When you use API, pass the alias to the `browsers()` method:
@@ -91,4 +88,4 @@ $ sudo npm link
 ```
 
 ## About TestingBot
-[TestingBot](https://testingbot.com) provides a cloud of +2500 browsers and physical mobile devices. This cloud hosted Selenium grid is 100% compatible with all frameworks and Selenium/Appium bindings. Take advantage of high concurrency [selenium testing](https://testingbot.com/features) in the cloud.
+[TestingBot](https://testingbot.com) provides a cloud of +5200 browsers and physical mobile devices. TestingBot is 100% compatible with all frameworks and Selenium/Appium bindings. Take advantage of high concurrency [selenium testing](https://testingbot.com/features) in the cloud.
