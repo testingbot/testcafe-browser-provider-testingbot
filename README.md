@@ -1,3 +1,5 @@
+[![Test](https://github.com/testingbot/testcafe-browser-provider-testingbot/actions/workflows/test.yml/badge.svg)](https://github.com/testingbot/testcafe-browser-provider-testingbot/actions/workflows/test.yml)
+
 This plugin integrates [TestCafe](http://devexpress.github.io/testcafe) with the [TestingBot Testing Cloud](https://testingbot.com).
 
 ## Install
