@@ -35,7 +35,7 @@
     "mocha": "^10.7.3",
     "pinkie": "^2.0.4",
     "selenium-webdriver": "^4.25.0",
-    "testingbot-api": "^1.0.9",
+    "testingbot-api": "^1.2.0",
     "testingbot-tunnel-launcher": "^1.1.12"
   },
   "devDependencies": {

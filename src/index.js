@@ -229,19 +229,14 @@ module.exports = {
 
   // Browser names handling
   async getBrowserList() {
-    return new Promise((resolve, reject) => {
-      this.apiClient.getBrowsers(function (error, browsers) {
-        if (error) return reject(error);
+    // testingbot-api >= 1.1 takes (type, callback); use the promise form.
+    const browsers = await this.apiClient.getBrowsers();
 
-        const browserList = browsers
-          .filter((browser) => !browser.deviceName)
-          .map((browser) => {
-            return `${_formalName(browser.name)}@${browser.version}:${browser.platform}`;
-          });
-
-        return resolve(browserList);
+    return browsers
+      .filter((browser) => !browser.deviceName)
+      .map((browser) => {
+        return `${_formalName(browser.name)}@${browser.version}:${browser.platform}`;
       });
-    });
   },
 
   async isValidBrowserName(/*browserName*/) {
