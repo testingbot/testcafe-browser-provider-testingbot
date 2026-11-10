@@ -9,7 +9,7 @@ npm install testcafe-browser-provider-testingbot
 ```
 
 ## Prerequisites
-You need NodeJS 18 or higher. The [TestingBot Tunnel](https://testingbot.com/support/other/tunnel) the plugin starts is a Java program: when no recent enough Java is installed, the plugin downloads a version of the tunnel that includes Java (Linux and macOS on x64 or arm64, Windows on x64).
+You need NodeJS 18 or higher and Java 17 or higher. Java is required for the [TestingBot Tunnel](https://testingbot.com/support/other/tunnel) to work (TestingBot Tunnel 5 needs Java 17).
 
 ## Usage
 Before you can use this plugin, you will need to get the TestingBot key and secret from the TestingBot member area.
