@@ -37,8 +37,11 @@ module.exports = {
   tbKey: null,
   tbSecret: null,
   tunnel: null,
+  tunnelPromise: null,
   apiClient: null,
   tunnelIdentifier: null,
+  tunnelLauncher: testingbotTunnel,
+  signalHandlers: null,
 
   /**
    * Open the browser with the given parameters
@@ -54,7 +57,10 @@ module.exports = {
         "Please specify both TB_KEY and TB_SECRET environment variables. You can find these two keys in the TestingBot member area.",
       );
 
-    if (!process.env["TB_SKIP_TUNNEL"]) this.tunnel = await this.startTunnel();
+    // One tunnel for the whole run. TestCafe calls openBrowser once per browser and again
+    // for every retry after a browser fails to connect; starting a tunnel each time leaked
+    // the previous one and soon hit "You already have 2 tunnels active".
+    if (!process.env["TB_SKIP_TUNNEL"]) await this.startTunnel();
 
     const caps = this.generateCapabilities(browserName, id);
 
@@ -64,7 +70,14 @@ module.exports = {
 
     const webDriver = await builder.build();
 
-    await webDriver.get(pageUrl);
+    try {
+      await webDriver.get(pageUrl);
+    } catch (error) {
+      // Don't leave the session running until the idle timeout ends it
+      await webDriver.quit().catch(() => {});
+      throw error;
+    }
+
     this.openedBrowsers[id] = webDriver;
 
     const session = await this.openedBrowsers[id].getSession();
@@ -80,38 +93,87 @@ module.exports = {
   },
 
   async startTunnel() {
+    if (this.tunnelPromise) return this.tunnelPromise;
+
     this.tunnelIdentifier =
       process.env.TB_TUNNEL_IDENTIFIER || "testcafe-" + new Date().getTime();
 
-    return new Promise((resolve, reject) => {
-      testingbotTunnel(
-        {
-          apiKey: this.tbKey,
-          apiSecret: this.tbSecret,
-          "tunnel-identifier": this.tunnelIdentifier,
-        },
-        function (err, tunnel) {
-          if (err) return reject(err);
+    const options = {
+      apiKey: this.tbKey,
+      apiSecret: this.tbSecret,
+      tunnelIdentifier: this.tunnelIdentifier,
+    };
 
-          return resolve(tunnel);
-        },
-      );
+    // Lets a run pin a tunnel release, e.g. TB_TUNNEL_VERSION=4.9
+    if (process.env.TB_TUNNEL_VERSION)
+      options.tunnelVersion = process.env.TB_TUNNEL_VERSION;
+
+    this.registerSignalHandlers();
+
+    this.tunnelPromise = new Promise((resolve, reject) => {
+      this.tunnelLauncher(options, (err, tunnel) => {
+        if (err) return reject(err);
+
+        this.tunnel = tunnel;
+
+        return resolve(tunnel);
+      });
+    }).catch((err) => {
+      // Let a later openBrowser try again instead of failing on a cached error
+      this.tunnelPromise = null;
+      this.tunnelIdentifier = null;
+      throw err;
     });
+
+    return this.tunnelPromise;
   },
 
   async stopTunnel() {
-    if (!this.tunnel) {
-      return new Promise((reject) => {
-        reject("Tunnel already closed");
-      });
-    }
+    const tunnel = this.tunnel;
+
+    this.tunnel = null;
+    this.tunnelPromise = null;
+    this.tunnelIdentifier = null;
+    this.unregisterSignalHandlers();
+
+    if (!tunnel) return false;
 
     return new Promise((resolve) => {
-      this.tunnel.close(() => {
-        this.tunnel = null;
-        resolve(true);
-      });
+      tunnel.close(() => resolve(true));
     });
+  },
+
+  /**
+   * Close the tunnel when the run is interrupted. The launcher kills the tunnel when the
+   * process exits, but a signal ends Node without an "exit" event unless something handles
+   * it, so the tunnel outlived Ctrl+C and blocked the next run.
+   */
+  registerSignalHandlers() {
+    if (this.signalHandlers) return;
+
+    this.signalHandlers = {};
+
+    for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+      const handler = () => {
+        this.stopTunnel().finally(() => {
+          // Restore the default behaviour unless someone else (TestCafe) handles the signal
+          if (process.listenerCount(signal) === 0)
+            process.kill(process.pid, signal);
+        });
+      };
+
+      this.signalHandlers[signal] = handler;
+      process.once(signal, handler);
+    }
+  },
+
+  unregisterSignalHandlers() {
+    if (!this.signalHandlers) return;
+
+    for (const signal in this.signalHandlers)
+      process.removeListener(signal, this.signalHandlers[signal]);
+
+    this.signalHandlers = null;
   },
 
   async closeBrowser(id) {
@@ -224,7 +286,16 @@ module.exports = {
       }
     }
 
-    if (this.tunnel) await this.stopTunnel();
+    // A tunnel that is still starting is closed once it is up
+    if (this.tunnelPromise) {
+      try {
+        await this.tunnelPromise;
+      } catch (error) {
+        // the tunnel never started, nothing to close
+      }
+    }
+
+    await this.stopTunnel();
   },
 
   // Browser names handling

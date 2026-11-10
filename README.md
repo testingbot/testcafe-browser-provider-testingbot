@@ -57,6 +57,12 @@ Use the following environment variables to set additional configuration options:
  - `TB_SCREEN_RESOLUTION` - allows setting the screen resolution for desktop browsers in the `${width}x${height}` format, has no effect when specified for a mobile browser.
  
  - `SELENIUM_HEARTBEAT` - this plugin will by default send a heartbeat every 8 seconds, to keep the WebDriver session open. Use this variable to change this interval.
+
+ - `TB_SKIP_TUNNEL` - set this variable to skip starting a [TestingBot Tunnel](https://testingbot.com/support/tunnel). By default the plugin starts one tunnel per run, so the remote browsers can reach the TestCafe proxy on your machine, and closes it when the run ends or is interrupted.
+
+ - `TB_TUNNEL_IDENTIFIER` - the identifier to give the tunnel the plugin starts.
+
+ - `TB_TUNNEL_VERSION` - the TestingBot Tunnel version to start, for example `5.1`. Defaults to the latest version.
  
 Example:
 ```sh
