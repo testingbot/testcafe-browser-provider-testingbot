@@ -73,8 +73,16 @@ describe("Tunnel lifecycle", function () {
     assert.ok(provider.tunnel);
   });
 
-  it("closes the tunnel on SIGINT", async function () {
+  it("quits the sessions and closes the tunnel on SIGINT", async function () {
     await provider.startTunnel();
+
+    let quits = 0;
+
+    provider.openedBrowsers["fake"] = {
+      quit: async () => {
+        quits += 1;
+      },
+    };
 
     // Keep this test process alive: with another listener present the
     // provider does not re-raise the signal
@@ -85,6 +93,8 @@ describe("Tunnel lifecycle", function () {
       process.emit("SIGINT", "SIGINT");
       await new Promise((resolve) => setTimeout(resolve, 20));
 
+      assert.strictEqual(quits, 1);
+      assert.deepStrictEqual(provider.openedBrowsers, {});
       assert.strictEqual(state.closes, 1);
       assert.strictEqual(provider.tunnel, null);
     } finally {

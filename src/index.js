@@ -144,9 +144,10 @@ module.exports = {
   },
 
   /**
-   * Close the tunnel when the run is interrupted. The launcher kills the tunnel when the
-   * process exits, but a signal ends Node without an "exit" event unless something handles
-   * it, so the tunnel outlived Ctrl+C and blocked the next run.
+   * Quit the sessions and close the tunnel when the run is interrupted. TestCafe stops on
+   * Ctrl+C without calling dispose(), and a signal ends Node without an "exit" event unless
+   * something handles it, so the tunnel outlived the run and blocked the next one, and the
+   * sessions ran on until the idle timeout.
    */
   registerSignalHandlers() {
     if (this.signalHandlers) return;
@@ -155,11 +156,13 @@ module.exports = {
 
     for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
       const handler = () => {
-        this.stopTunnel().finally(() => {
-          // Restore the default behaviour unless someone else (TestCafe) handles the signal
-          if (process.listenerCount(signal) === 0)
-            process.kill(process.pid, signal);
-        });
+        this.dispose()
+          .catch(() => {})
+          .finally(() => {
+            // Restore the default behaviour unless someone else (TestCafe) handles the signal
+            if (process.listenerCount(signal) === 0)
+              process.kill(process.pid, signal);
+          });
       };
 
       this.signalHandlers[signal] = handler;
