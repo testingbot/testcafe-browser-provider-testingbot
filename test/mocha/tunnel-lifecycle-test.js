@@ -123,4 +123,38 @@ describe("Tunnel lifecycle", function () {
 
     assert.strictEqual(state.starts[0].tunnelVersion, "4.9");
   });
+
+  it("abandons an openBrowser that is still waiting for the tunnel when disposed", async function () {
+    const env = {
+      TB_KEY: process.env.TB_KEY,
+      TB_SECRET: process.env.TB_SECRET,
+    };
+
+    process.env.TB_KEY = env.TB_KEY || "key";
+    process.env.TB_SECRET = env.TB_SECRET || "secret";
+
+    try {
+      // Settle into a value right away, so the rejection is never unhandled
+      const outcome = provider
+        .openBrowser("late", "http://localhost/connect", "chrome@latest:WIN11")
+        .then(
+          () => null,
+          (error) => error,
+        );
+
+      await provider.dispose();
+
+      const error = await outcome;
+
+      assert.match(String(error), /disposed while opening the browser/);
+
+      assert.deepStrictEqual(provider.openedBrowsers, {});
+      assert.strictEqual(state.closes, 1);
+    } finally {
+      for (const name in env) {
+        if (env[name] === undefined) delete process.env[name];
+        else process.env[name] = env[name];
+      }
+    }
+  });
 });

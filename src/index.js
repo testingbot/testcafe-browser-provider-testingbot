@@ -42,6 +42,8 @@ module.exports = {
   tunnelIdentifier: null,
   tunnelLauncher: testingbotTunnel,
   signalHandlers: null,
+  // Bumped by dispose(), so a browser that is still opening knows it is no longer wanted
+  generation: 0,
 
   /**
    * Open the browser with the given parameters
@@ -60,7 +62,16 @@ module.exports = {
     // One tunnel for the whole run. TestCafe calls openBrowser once per browser and again
     // for every retry after a browser fails to connect; starting a tunnel each time leaked
     // the previous one and soon hit "You already have 2 tunnels active".
+    const generation = this.generation;
+    const abandon = async (webDriver) => {
+      if (webDriver) await webDriver.quit().catch(() => {});
+      throw new Error(
+        "The TestingBot provider was disposed while opening the browser",
+      );
+    };
+
     if (!process.env["TB_SKIP_TUNNEL"]) await this.startTunnel();
+    if (this.generation !== generation) await abandon();
 
     const caps = this.generateCapabilities(browserName, id);
 
@@ -70,6 +81,8 @@ module.exports = {
 
     const webDriver = await builder.build();
 
+    if (this.generation !== generation) await abandon(webDriver);
+
     try {
       await webDriver.get(pageUrl);
     } catch (error) {
@@ -77,6 +90,8 @@ module.exports = {
       await webDriver.quit().catch(() => {});
       throw error;
     }
+
+    if (this.generation !== generation) await abandon(webDriver);
 
     this.openedBrowsers[id] = webDriver;
 
@@ -280,6 +295,8 @@ module.exports = {
   },
 
   async dispose() {
+    this.generation += 1;
+
     // ensure every session is closed on process exit
     for (const id in this.openedBrowsers) {
       try {

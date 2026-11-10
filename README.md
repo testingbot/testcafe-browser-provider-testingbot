@@ -9,7 +9,7 @@ npm install testcafe-browser-provider-testingbot
 ```
 
 ## Prerequisites
-You need to have NodeJS installed and Java (JRE8 or higher). Java is required for the [TestingBot Tunnel](https://testingbot.com/support/other/tunnel) to work.
+You need NodeJS 18 or higher. The [TestingBot Tunnel](https://testingbot.com/support/other/tunnel) the plugin starts is a Java program: when no recent enough Java is installed, the plugin downloads a version of the tunnel that includes Java (Linux and macOS on x64 or arm64, Windows on x64).
 
 ## Usage
 Before you can use this plugin, you will need to get the TestingBot key and secret from the TestingBot member area.
@@ -58,7 +58,7 @@ Use the following environment variables to set additional configuration options:
  
  - `SELENIUM_HEARTBEAT` - this plugin will by default send a heartbeat every 8 seconds, to keep the WebDriver session open. Use this variable to change this interval.
 
- - `TB_SKIP_TUNNEL` - set this variable to skip starting a [TestingBot Tunnel](https://testingbot.com/support/tunnel). By default the plugin starts one tunnel per run, so the remote browsers can reach the TestCafe proxy on your machine, and closes it when the run ends or is interrupted.
+ - `TB_SKIP_TUNNEL` - set this variable to skip starting a [TestingBot Tunnel](https://testingbot.com/support/other/tunnel). By default the plugin starts one tunnel per run, so the remote browsers can reach the TestCafe proxy on your machine, and closes it when the run ends or is interrupted.
 
  - `TB_TUNNEL_IDENTIFIER` - the identifier to give the tunnel the plugin starts.
 
