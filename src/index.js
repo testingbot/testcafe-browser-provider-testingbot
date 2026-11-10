@@ -37,8 +37,13 @@ module.exports = {
   tbKey: null,
   tbSecret: null,
   tunnel: null,
+  tunnelPromise: null,
   apiClient: null,
   tunnelIdentifier: null,
+  tunnelLauncher: testingbotTunnel,
+  signalHandlers: null,
+  // Bumped by dispose(), so a browser that is still opening knows it is no longer wanted
+  generation: 0,
 
   /**
    * Open the browser with the given parameters
@@ -54,7 +59,19 @@ module.exports = {
         "Please specify both TB_KEY and TB_SECRET environment variables. You can find these two keys in the TestingBot member area.",
       );
 
-    if (!process.env["TB_SKIP_TUNNEL"]) this.tunnel = await this.startTunnel();
+    // One tunnel for the whole run. TestCafe calls openBrowser once per browser and again
+    // for every retry after a browser fails to connect; starting a tunnel each time leaked
+    // the previous one and soon hit "You already have 2 tunnels active".
+    const generation = this.generation;
+    const abandon = async (webDriver) => {
+      if (webDriver) await webDriver.quit().catch(() => {});
+      throw new Error(
+        "The TestingBot provider was disposed while opening the browser",
+      );
+    };
+
+    if (!process.env["TB_SKIP_TUNNEL"]) await this.startTunnel();
+    if (this.generation !== generation) await abandon();
 
     const caps = this.generateCapabilities(browserName, id);
 
@@ -64,7 +81,18 @@ module.exports = {
 
     const webDriver = await builder.build();
 
-    await webDriver.get(pageUrl);
+    if (this.generation !== generation) await abandon(webDriver);
+
+    try {
+      await webDriver.get(pageUrl);
+    } catch (error) {
+      // Don't leave the session running until the idle timeout ends it
+      await webDriver.quit().catch(() => {});
+      throw error;
+    }
+
+    if (this.generation !== generation) await abandon(webDriver);
+
     this.openedBrowsers[id] = webDriver;
 
     const session = await this.openedBrowsers[id].getSession();
@@ -80,38 +108,90 @@ module.exports = {
   },
 
   async startTunnel() {
+    if (this.tunnelPromise) return this.tunnelPromise;
+
     this.tunnelIdentifier =
       process.env.TB_TUNNEL_IDENTIFIER || "testcafe-" + new Date().getTime();
 
-    return new Promise((resolve, reject) => {
-      testingbotTunnel(
-        {
-          apiKey: this.tbKey,
-          apiSecret: this.tbSecret,
-          "tunnel-identifier": this.tunnelIdentifier,
-        },
-        function (err, tunnel) {
-          if (err) return reject(err);
+    const options = {
+      apiKey: this.tbKey,
+      apiSecret: this.tbSecret,
+      tunnelIdentifier: this.tunnelIdentifier,
+    };
 
-          return resolve(tunnel);
-        },
-      );
+    // Lets a run pin a tunnel release, e.g. TB_TUNNEL_VERSION=4.9
+    if (process.env.TB_TUNNEL_VERSION)
+      options.tunnelVersion = process.env.TB_TUNNEL_VERSION;
+
+    this.registerSignalHandlers();
+
+    this.tunnelPromise = new Promise((resolve, reject) => {
+      this.tunnelLauncher(options, (err, tunnel) => {
+        if (err) return reject(err);
+
+        this.tunnel = tunnel;
+
+        return resolve(tunnel);
+      });
+    }).catch((err) => {
+      // Let a later openBrowser try again instead of failing on a cached error
+      this.tunnelPromise = null;
+      this.tunnelIdentifier = null;
+      throw err;
     });
+
+    return this.tunnelPromise;
   },
 
   async stopTunnel() {
-    if (!this.tunnel) {
-      return new Promise((reject) => {
-        reject("Tunnel already closed");
-      });
-    }
+    const tunnel = this.tunnel;
+
+    this.tunnel = null;
+    this.tunnelPromise = null;
+    this.tunnelIdentifier = null;
+    this.unregisterSignalHandlers();
+
+    if (!tunnel) return false;
 
     return new Promise((resolve) => {
-      this.tunnel.close(() => {
-        this.tunnel = null;
-        resolve(true);
-      });
+      tunnel.close(() => resolve(true));
     });
+  },
+
+  /**
+   * Quit the sessions and close the tunnel when the run is interrupted. TestCafe stops on
+   * Ctrl+C without calling dispose(), and a signal ends Node without an "exit" event unless
+   * something handles it, so the tunnel outlived the run and blocked the next one, and the
+   * sessions ran on until the idle timeout.
+   */
+  registerSignalHandlers() {
+    if (this.signalHandlers) return;
+
+    this.signalHandlers = {};
+
+    for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+      const handler = () => {
+        this.dispose()
+          .catch(() => {})
+          .finally(() => {
+            // Restore the default behaviour unless someone else (TestCafe) handles the signal
+            if (process.listenerCount(signal) === 0)
+              process.kill(process.pid, signal);
+          });
+      };
+
+      this.signalHandlers[signal] = handler;
+      process.once(signal, handler);
+    }
+  },
+
+  unregisterSignalHandlers() {
+    if (!this.signalHandlers) return;
+
+    for (const signal in this.signalHandlers)
+      process.removeListener(signal, this.signalHandlers[signal]);
+
+    this.signalHandlers = null;
   },
 
   async closeBrowser(id) {
@@ -215,6 +295,8 @@ module.exports = {
   },
 
   async dispose() {
+    this.generation += 1;
+
     // ensure every session is closed on process exit
     for (const id in this.openedBrowsers) {
       try {
@@ -224,24 +306,28 @@ module.exports = {
       }
     }
 
-    if (this.tunnel) await this.stopTunnel();
+    // A tunnel that is still starting is closed once it is up
+    if (this.tunnelPromise) {
+      try {
+        await this.tunnelPromise;
+      } catch (error) {
+        // the tunnel never started, nothing to close
+      }
+    }
+
+    await this.stopTunnel();
   },
 
   // Browser names handling
   async getBrowserList() {
-    return new Promise((resolve, reject) => {
-      this.apiClient.getBrowsers(function (error, browsers) {
-        if (error) return reject(error);
+    // testingbot-api >= 1.1 takes (type, callback); use the promise form.
+    const browsers = await this.apiClient.getBrowsers();
 
-        const browserList = browsers
-          .filter((browser) => !browser.deviceName)
-          .map((browser) => {
-            return `${_formalName(browser.name)}@${browser.version}:${browser.platform}`;
-          });
-
-        return resolve(browserList);
+    return browsers
+      .filter((browser) => !browser.deviceName)
+      .map((browser) => {
+        return `${_formalName(browser.name)}@${browser.version}:${browser.platform}`;
       });
-    });
   },
 
   async isValidBrowserName(/*browserName*/) {
